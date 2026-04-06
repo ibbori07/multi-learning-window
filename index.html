@@ -100,7 +100,7 @@
 
         <div class="flex-grow max-w-md mx-4 hidden sm:block">
             <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">단원 통합 진도율</span>
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">단원 통합 진도율 <span id="progress-time" class="lowercase font-normal ml-1.5 tracking-normal text-gray-500">(0분 / 0분)</span></span>
                 <span id="progress-text" class="text-xs font-bold text-forest">0%</span>
             </div>
             <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden w-full">
@@ -407,6 +407,8 @@
             localStorage.setItem('guest_name', guestName);
         }
 
+        let curriculumData = []; // Store globally for progress calculation
+
         async function initDashboard() {
             await Promise.all([
                 loadCurriculum(),
@@ -423,6 +425,8 @@
         async function loadCurriculum() {
             const { data, error } = await supabaseClient.from('curriculum').select('*').order('order_idx', { ascending: true });
             if (error) { console.error(error); return; }
+            
+            curriculumData = data || [];
             
             const menuNav = document.getElementById('menu-nav');
             menuNav.innerHTML = '';
@@ -471,11 +475,29 @@
         async function loadProgress() {
             const { data, error } = await supabaseClient.from('user_progress').select('*').eq('guest_id', guestId).eq('completed', true);
             if (error) return;
-            const totalUnits = 6;
+            
+            const totalUnits = curriculumData.length || 6;
             const completedUnits = data ? data.length : 0;
-            const percentage = Math.round((completedUnits / totalUnits) * 100);
+            const percentage = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
+            
+            const totalMinutes = curriculumData.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
+            let completedMinutes = 0;
+            if (data) {
+                data.forEach(p => {
+                    const matchedUnit = curriculumData.find(c => c.unit_id === p.unit_id);
+                    if (matchedUnit) {
+                        completedMinutes += (matchedUnit.duration_minutes || 0);
+                    }
+                });
+            }
             
             document.getElementById('progress-text').innerText = `${percentage}%`;
+            
+            const timeSpan = document.getElementById('progress-time');
+            if (timeSpan) {
+                timeSpan.innerText = `(${completedMinutes}분 / ${totalMinutes}분)`;
+            }
+
             const bar = document.getElementById('progress-bar');
             bar.style.width = `${percentage}%`;
             bar.setAttribute('aria-valuenow', percentage);
