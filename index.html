@@ -101,7 +101,10 @@
         <div class="flex-grow max-w-md mx-4 hidden sm:block">
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">단원 통합 진도율 <span id="progress-time" class="lowercase font-normal ml-1.5 tracking-normal text-gray-500">(0분 / 0분)</span></span>
-                <span id="progress-text" class="text-xs font-bold text-forest">0%</span>
+                <div class="flex items-center gap-2">
+                    <span id="realtime-clock" class="text-xs font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded shadow-inner" aria-label="누적 학습 시간">⏱ 00:00:00</span>
+                    <span id="progress-text" class="text-xs font-bold text-forest">0%</span>
+                </div>
             </div>
             <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden w-full">
                 <div id="progress-bar" class="h-full bg-forest rounded-full transition-all duration-500 ease-out" style="width: 0%;" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
@@ -408,6 +411,50 @@
         }
 
         let curriculumData = []; // Store globally for progress calculation
+        let userProgressData = [];
+        let activeUnitId = 'intro';
+        let syncTimeout = null;
+        
+        // 1초 단위 실시간 타이머 및 DB 동기화 로직
+        setInterval(() => {
+            if (!activeUnitId) return;
+            let p = userProgressData.find(x => x.unit_id === activeUnitId);
+            if (!p) {
+                p = { guest_id: guestId, unit_id: activeUnitId, completed: false, spent_seconds: 0 };
+                userProgressData.push(p);
+            }
+            p.spent_seconds = (p.spent_seconds || 0) + 1;
+            
+            // 화면의 디지털 시계 UI 즉각 업데이트
+            updateClockUI();
+            
+            // 서버 부하를 막기 위해 5초에 한 번만 DB로 전송 (Debounce + Throttle)
+            if (!syncTimeout) {
+                syncTimeout = setTimeout(() => {
+                    syncActiveUnitProgress(p);
+                    syncTimeout = null;
+                }, 5000);
+            }
+        }, 1000);
+        
+        async function syncActiveUnitProgress(pObj) {
+            await supabaseClient.from('user_progress').upsert({
+                guest_id: pObj.guest_id, 
+                unit_id: pObj.unit_id, 
+                completed: pObj.completed, 
+                spent_seconds: pObj.spent_seconds,
+                updated_at: new Date()
+            }, { onConflict: 'guest_id,unit_id' });
+        }
+
+        function updateClockUI() {
+            const totalSeconds = userProgressData.reduce((sum, item) => sum + (item.spent_seconds || 0), 0);
+            const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const s = String(totalSeconds % 60).padStart(2, '0');
+            const clockEl = document.getElementById('realtime-clock');
+            if(clockEl) clockEl.innerText = `⏱ ${h}:${m}:${s}`;
+        }
 
         async function initDashboard() {
             await Promise.all([
@@ -473,23 +520,24 @@
         }
 
         async function loadProgress() {
-            const { data, error } = await supabaseClient.from('user_progress').select('*').eq('guest_id', guestId).eq('completed', true);
+            const { data, error } = await supabaseClient.from('user_progress').select('*').eq('guest_id', guestId);
             if (error) return;
             
+            userProgressData = data || [];
+            
+            const completedData = userProgressData.filter(d => d.completed === true);
             const totalUnits = curriculumData.length || 6;
-            const completedUnits = data ? data.length : 0;
+            const completedUnits = completedData.length;
             const percentage = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
             
             const totalMinutes = curriculumData.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
             let completedMinutes = 0;
-            if (data) {
-                data.forEach(p => {
-                    const matchedUnit = curriculumData.find(c => c.unit_id === p.unit_id);
-                    if (matchedUnit) {
-                        completedMinutes += (matchedUnit.duration_minutes || 0);
-                    }
-                });
-            }
+            completedData.forEach(p => {
+                const matchedUnit = curriculumData.find(c => c.unit_id === p.unit_id);
+                if (matchedUnit) {
+                    completedMinutes += (matchedUnit.duration_minutes || 0);
+                }
+            });
             
             document.getElementById('progress-text').innerText = `${percentage}%`;
             
@@ -501,13 +549,23 @@
             const bar = document.getElementById('progress-bar');
             bar.style.width = `${percentage}%`;
             bar.setAttribute('aria-valuenow', percentage);
+            
+            updateClockUI();
         }
 
         async function markAsCompleted(unit_id) {
-            await supabaseClient.from('user_progress').upsert({
-                guest_id: guestId, unit_id: unit_id, completed: true, updated_at: new Date()
-            }, { onConflict: 'guest_id,unit_id' });
-            loadProgress();
+            activeUnitId = unit_id; // 현재 시청중인 단원 변경 (타이머가 이 단원으로 넘어감)
+            let p = userProgressData.find(x => x.unit_id === unit_id);
+            if (!p) {
+                p = { guest_id: guestId, unit_id: unit_id, spent_seconds: 0, completed: false };
+                userProgressData.push(p);
+            }
+            if(!p.completed) {
+                p.completed = true;
+                await syncActiveUnitProgress(p);
+                // 막대기와 분량 텍스트 다시 그리기
+                loadProgress();
+            }
         }
 
         const memoTextarea = document.getElementById('memo-textarea');
