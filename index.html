@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>통합학습창 1:1 매핑 (EduCore)</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        forest: {
+                            DEFAULT: '#2D5A27',
+                            light: '#3A7032',
+                            dark: '#1E3C1A',
+                            50: '#F2F9F1',
+                            100: '#E1EFE0'
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'inner-soft': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+
+    <style>
+        /* Smooth Drawer Transitions */
+        #leftSidebar, #rightSidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #overlay {
+            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Views transition */
+        .content-view {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Audio Waveform dummy animation */
+        @keyframes pulseHeight {
+            0%, 100% { transform: scaleY(0.8); }
+            50% { transform: scaleY(1.2); }
+        }
+        .anim-wave {
+            transform-origin: bottom;
+            animation: pulseHeight 1.5s infinite ease-in-out alternate;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+    </style>
+</head>
+<body class="h-screen bg-white text-gray-800 flex flex-col overflow-hidden text-sm md:text-base font-sans">
+
+    <!-- OVERLAY -->
+    <div id="overlay" class="fixed inset-0 bg-gray-900/40 z-20 hidden opacity-0 lg:hidden" aria-hidden="true"></div>
+
+    <!-- HEADER -->
+    <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 lg:px-6 z-10 shadow-soft shrink-0 relative z-30">
+        <div class="flex items-center gap-3 w-1/4">
+            <button id="btnToggleLeft" class="p-2 -ml-2 text-gray-500 hover:bg-forest-100 hover:text-forest rounded-lg lg:hidden focus:outline-none focus:ring-2 focus:ring-forest transition-colors" aria-label="학습 목차 열기">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-2 font-bold text-lg tracking-tight text-gray-900" aria-label="통합학습창 홈">
+                <div class="w-8 h-8 rounded-lg bg-forest flex items-center justify-center text-white shadow-sm">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <span class="hidden sm:block text-forest">에듀코어(EduCore)</span>
+            </div>
+        </div>
+
+        <div class="flex-grow max-w-md mx-4 hidden sm:block">
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">단원 통합 진도율</span>
+                <span id="progress-text" class="text-xs font-bold text-forest">0%</span>
+            </div>
+            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden w-full">
+                <div id="progress-bar" class="h-full bg-forest rounded-full transition-all duration-500 ease-out" style="width: 0%;" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 w-1/4 justify-end">
+            <button id="btnToggleRight" class="p-2 -mr-2 text-gray-500 hover:bg-forest-100 hover:text-forest rounded-lg lg:hidden focus:outline-none focus:ring-2 focus:ring-forest transition-colors" aria-label="학습 도구 열기">
+                <i data-lucide="wrench" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WRAPPER -->
+    <div class="flex-grow flex relative overflow-hidden h-[calc(100vh-4rem)]">
+
+        <!-- LEFT SIDEBAR: 학습 목차 -->
+        <aside id="leftSidebar" class="absolute lg:static top-0 left-0 h-full w-72 bg-white border-r border-forest-100 z-30 transform -translate-x-full lg:translate-x-0 flex flex-col shadow-soft lg:shadow-none transition-transform" aria-label="학습 목차">
+            <div class="p-5 border-b border-gray-50 shrink-0 flex justify-between items-center">
+                <h2 class="font-semibold text-gray-800 tracking-tight">학습 목차 (커리큘럼)</h2>
+                <button id="btnCloseLeft" class="lg:hidden p-1 text-gray-400 hover:text-gray-600 rounded focus:ring-2 focus:ring-forest outline-none" aria-label="목차 닫기">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <nav class="flex-grow overflow-y-auto p-4 space-y-2" id="menu-nav">
+                <div class="text-center text-gray-400 text-xs py-10">목차 로딩 중...</div>
+            </nav>
+        </aside>
+
+        <!-- CENTRAL AREA -->
+        <main class="flex-grow bg-white lg:bg-[#fcfbfc] overflow-y-auto relative w-full h-full p-4 lg:p-8 flex justify-center" aria-live="polite">
+            
+            <!-- 1. Intro View -->
+            <div id="view-intro" class="content-view w-full max-w-4xl mx-auto flex flex-col p-4">
+                <div class="bg-forest-50 border border-forest-100 rounded-2xl p-8 lg:p-12 text-center mt-4">
+                    <h1 class="text-3xl lg:text-4xl font-bold text-forest mb-4">0. 학습 오리엔테이션</h1>
+                    <p class="text-gray-600 mb-8 max-w-xl mx-auto leading-relaxed">
+                        본 모듈에서는 시스템의 전반적인 구조와 디자인 원칙에 대해 학습합니다. 우측의 학습 도구(Q&A, 메모, 자료실)를 적극 활용하여 효율적으로 학습을 진행해보세요.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <h3 class="font-bold text-forest tracking-wider mb-2 text-sm uppercase">학습 목표 1</h3>
+                            <p class="text-sm text-gray-600">시스템 아키텍처의 기본 원리 이해하기</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <h3 class="font-bold text-forest tracking-wider mb-2 text-sm uppercase">학습 목표 2</h3>
+                            <p class="text-sm text-gray-600">정보의 구조화 및 배치 패턴 습득</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <h3 class="font-bold text-forest tracking-wider mb-2 text-sm uppercase">학습 목표 3</h3>
+                            <p class="text-sm text-gray-600">실시간 피드백 시스템 통합하기</p>
+                        </div>
+                    </div>
+                    <button class="mt-10 bg-forest text-white px-8 py-3 rounded-full font-bold shadow-md hover:bg-forest-light transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest">
+                        본격적으로 학습 시작하기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Video View -->
+            <div id="view-video" class="content-view hidden w-full max-w-4xl mx-auto flex flex-col p-4">
+                <div class="mb-6">
+                    <h1 class="text-2xl lg:text-3xl font-bold text-gray-900">1. 시스템의 이해</h1>
+                    <p class="text-sm text-gray-500 mt-2">끝까지 집중해서 시청한 후 다음 항목으로 넘어가세요.</p>
+                </div>
+                <div class="relative w-full pb-[56.25%] bg-gray-900 rounded-xl overflow-hidden shadow-lg border border-gray-800 group" aria-label="동영상 플레이어">
+                    <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80" alt="Video cover" class="absolute inset-0 w-full h-full object-cover opacity-50" />
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <button class="w-16 h-16 bg-forest text-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform focus:outline-none focus:ring-4 focus:ring-forest-50" aria-label="재생">
+                            <i data-lucide="play" class="w-8 h-8 ml-1"></i>
+                        </button>
+                    </div>
+                    <div class="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex items-center gap-4">
+                        <div class="h-1.5 flex-grow bg-white/30 rounded-full overflow-hidden cursor-pointer" aria-label="타임라인">
+                            <div class="h-full bg-forest-100 w-1/3 transition-all"></div>
+                        </div>
+                        <button aria-label="전체화면" class="focus:outline-none">
+                            <i data-lucide="maximize" class="w-5 h-5 text-white hover:text-forest-100"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Doc View -->
+            <div id="view-doc" class="content-view hidden w-full max-w-4xl mx-auto flex flex-col p-4">
+                <div class="mb-8 flex flex-wrap gap-4 justify-between items-center border-b border-gray-100 pb-4 mt-2">
+                    <h1 class="text-2xl lg:text-3xl font-bold text-gray-900">2. 핵심 디자인 원칙</h1>
+                    <div class="flex gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                        <button aria-label="글씨 축소" class="p-1.5 text-gray-600 hover:text-forest hover:bg-forest-100 rounded focus:outline-none focus:bg-forest-100"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+                        <button aria-label="글씨 확대" class="p-1.5 text-gray-600 hover:text-forest hover:bg-forest-100 rounded focus:outline-none focus:bg-forest-100"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <article class="prose prose-stone lg:prose-lg text-gray-700 leading-loose max-w-none">
+                    <h2 class="text-xl font-bold mt-2 mb-4 text-forest">01. 레이아웃의 규칙</h2>
+                    <p class="mb-6 text-[15px] lg:text-base">웹 디자인의 핵심은 정보의 체계화입니다. 1:1 매핑 구조를 통해 사용자의 시선이 분산되지 않고 오로지 중앙의 콘텐츠 영역으로 자연스럽게 유도될 수 있습니다. 이를 위해서는 일관성 있는 색상, 여백, 타이포그래피가 필수적입니다.</p>
+                    <h2 class="text-xl font-bold mt-8 mb-4 text-forest">02. 기억해야 할 포인트</h2>
+                    <ul class="list-disc pl-5 space-y-3 mb-8 bg-gray-50 p-6 rounded-xl border border-gray-100 text-[15px] lg:text-base">
+                        <li>상태 관리(State Management)를 활용하여 부드러운 전환 효과(Transition) 구성.</li>
+                        <li>컨트롤 역할을 하는 메뉴(Navigation) 영역과 표출 영역(Main)의 역할을 확고히 분리.</li>
+                        <li>웹 접근성을 위한 ARIA 적용을 필수 규칙으로 삼기.</li>
+                    </ul>
+                    <p class="mb-6 text-[15px] lg:text-base">모바일 화면에서도 이러한 원칙은 동일하게 적용되며, 공간의 제약이 있는 만큼 드로어 패턴을 이용해 필요할 때만 도구를 꺼내 쓰는 방식이 가장 이상적입니다.</p>
+                </article>
+            </div>
+
+            <!-- 4. Audio View -->
+            <div id="view-audio" class="content-view hidden w-full max-w-4xl mx-auto flex flex-col p-4">
+                <div class="mb-8">
+                    <h1 class="text-2xl lg:text-3xl font-bold text-gray-900">3. 팟캐스트: 미래 기술</h1>
+                    <p class="text-sm text-gray-500 mt-2">눈을 감고 편안히 들으며 청각으로 학습하는 팟캐스트 세션입니다.</p>
+                </div>
+                <div class="bg-gradient-to-br from-forest to-forest-dark p-8 lg:p-12 rounded-2xl shadow-lg flex flex-col items-center justify-center relative overflow-hidden text-white" aria-label="오디오 플레이어">
+                    <div class="text-center mb-8 z-10 w-full max-w-md">
+                        <h3 class="text-xl font-bold mb-1 border-b border-white/20 pb-4 inline-block font-sans">미래 기술 트렌드 2026</h3>
+                        <div class="text-xs font-semibold tracking-widest text-forest-100/70 mt-4 uppercase">EPISODE 04</div>
+                    </div>
+                    <div class="w-full max-w-2xl flex flex-col items-center gap-6 z-10">
+                        <!-- Waveform -->
+                        <div class="w-full flex items-center justify-center gap-1 h-16 xl:h-24 px-4 bg-black/10 rounded-xl" id="audio-wave">
+                            <!-- script generated lines inside for animation -->
+                        </div>
+                        
+                        <div class="flex items-center gap-6 mt-4 w-full justify-between">
+                            <span class="text-xs font-medium font-mono text-white/70">12:35</span>
+                            <div class="flex items-center gap-4">
+                                <button class="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none hover:bg-white/30 transition flex items-center">
+                                    <i data-lucide="fast-forward" class="w-4 h-4 mr-1 scale-x-[-1]"></i> 15초
+                                </button>
+                                <button class="w-14 h-14 bg-white text-forest rounded-full flex items-center justify-center shrink-0 shadow-lg hover:scale-105 transition-transform mx-2 focus:outline-none focus:ring-4 focus:ring-white/40" aria-label="음성 재생">
+                                    <i data-lucide="play" class="w-7 h-7 ml-1"></i>
+                                </button>
+                                <button class="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none hover:bg-white/30 transition flex items-center">
+                                    <i data-lucide="fast-forward" class="w-4 h-4 mr-1"></i> 15초
+                                </button>
+                            </div>
+                            <span class="text-xs font-medium font-mono text-white/70">45:00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Discussion View -->
+            <div id="view-discussion" class="content-view hidden w-full max-w-4xl mx-auto flex flex-col p-4">
+                <div class="mb-8 border-b border-gray-100 pb-6">
+                    <span class="bg-forest-50 text-forest px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-full">주제 토론</span>
+                    <h1 class="text-2xl lg:text-3xl font-bold text-gray-900 mt-4">4. 주제 심층 토론</h1>
+                    <p class="text-[15px] text-gray-700 mt-4 leading-relaxed bg-gray-50 border border-gray-200 p-5 rounded-xl">
+                        "UI를 디자인할 때 단순함(Minimalism)이 항상 사용성을 보장하는가?" 에 대하여 여러분의 견해를 자유롭게 나누어 봅시다.
+                    </p>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="flex gap-4">
+                        <div class="w-10 h-10 rounded-full bg-forest text-white flex items-center justify-center font-bold shrink-0">김</div>
+                        <div class="flex-grow bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-sm text-gray-900">김개발</span>
+                                <span class="text-xs text-gray-400">2시간 전</span>
+                            </div>
+                            <p class="text-[14px] text-gray-700 leading-relaxed">미니멀리즘은 시각적으로 아름답지만, 기능이 명확히 노출되지 않으면 초보자에게 오히려 어려움을 줄 수 있습니다.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-10 h-10 rounded-full bg-forest text-white flex items-center justify-center font-bold shrink-0">이</div>
+                        <div class="flex-grow bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-sm text-gray-900">이디자인</span>
+                                <span class="text-xs text-gray-400">1시간 전</span>
+                            </div>
+                            <p class="text-[14px] text-gray-700 leading-relaxed">동의합니다. 그래서 적절한 ARIA 라벨링과 툴팁이 추가되어야 진정한 UX 가치가 성립한다고 생각해요.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 pt-4 pb-12 top-shadow-sm sticky bottom-0 bg-white border-t border-transparent lg:border-gray-50">
+                    <div class="flex items-start gap-4 p-4 border border-forest/20 bg-forest-50 rounded-xl shadow-sm">
+                        <div class="w-10 h-10 rounded-full bg-gray-300 text-white flex items-center justify-center font-bold shrink-0">나</div>
+                        <div class="flex-grow">
+                            <textarea class="w-full bg-white border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-forest resize-none leading-relaxed" rows="3" placeholder="이 토론 주제에 대한 의견을 작성해주세요..." aria-label="의견 입력란"></textarea>
+                            <div class="flex justify-end mt-2">
+                                <button class="bg-forest text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-forest-light transition">의견 등록</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. Quiz View -->
+            <div id="view-quiz" class="content-view hidden w-full max-w-4xl mx-auto flex flex-col p-4">
+                <div class="mb-6 flex justify-between items-center">
+                    <h1 class="text-2xl lg:text-3xl font-bold text-gray-900">5. 모듈 1 단원 평가</h1>
+                    <span class="text-sm font-bold text-forest bg-forest-50 border border-forest-100 px-3 py-1 rounded-full">진행 중 (1/5)</span>
+                </div>
+                <div class="bg-white border border-forest-100 p-6 lg:p-10 rounded-xl shadow-sm mt-4">
+                    <h3 class="font-bold text-lg text-gray-800 mb-4">Q1. 중앙 표출 영역으로 이벤트를 전달(통신)하기 위해 컴포넌트 간에 흔히 사용되는 기능(패턴)은 무엇입니까?</h3>
+                    <div class="space-y-3 mt-8">
+                        <label class="flex items-center gap-4 p-5 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition focus-within:ring-2 focus-within:ring-forest focus-within:bg-forest-50/40">
+                            <input type="radio" name="quiz_q1" class="text-forest focus:ring-forest w-5 h-5 ml-1" />
+                            <span class="text-[15px] text-gray-800 font-medium">CSS Transitions(전환 객체)</span>
+                        </label>
+                        <label class="flex items-center gap-4 p-5 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition focus-within:ring-2 focus-within:ring-forest focus-within:bg-forest-50/40">
+                            <input type="radio" name="quiz_q1" class="text-forest focus:ring-forest w-5 h-5 ml-1" />
+                            <span class="text-[15px] text-gray-800 font-medium">State(상태값)와 Props 매핑</span>
+                        </label>
+                        <label class="flex items-center gap-4 p-5 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition focus-within:ring-2 focus-within:ring-forest focus-within:bg-forest-50/40">
+                            <input type="radio" name="quiz_q1" class="text-forest focus:ring-forest w-5 h-5 ml-1" />
+                            <span class="text-[15px] text-gray-800 font-medium">LocalStorage</span>
+                        </label>
+                    </div>
+                    <div class="mt-10 pt-6 border-t border-gray-100 flex flex-wrap gap-4 justify-between items-center">
+                        <button class="text-gray-500 font-bold text-sm tracking-wide hover:text-gray-900 transition underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-gray-300 rounded px-2 py-1">나중에 마저 풀기</button>
+                        <button class="bg-forest text-white px-8 py-3 rounded-lg font-bold hover:bg-forest-light shadow-sm transition transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest">
+                            정답 제출 후 채점
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- RIGHT SIDEBAR: 확장 도구 -->
+        <aside id="rightSidebar" class="absolute lg:static top-0 right-0 h-full w-80 bg-white border-l border-forest-100 z-30 transform translate-x-full lg:translate-x-0 flex flex-col shadow-soft lg:shadow-none transition-transform" aria-label="학습 도구 모음">
+            <div class="p-4 border-b border-gray-50 flex justify-between items-center shrink-0">
+                <h2 class="font-semibold text-gray-800 tracking-tight">학습 확장 도구</h2>
+                <button id="btnCloseRight" class="lg:hidden p-1 text-gray-400 hover:text-gray-600 rounded focus:ring-2 focus:ring-forest outline-none" aria-label="도구 닫기">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="flex border-b border-gray-100 shrink-0" role="tablist">
+                <button onclick="switchTab('qa')" id="tab-qa" role="tab" class="tab-btn flex-1 py-3 flex flex-col items-center gap-1 transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-forest text-forest border-b-2 border-forest bg-forest-50/30">
+                    <i data-lucide="message-square" class="w-5 h-5"></i>
+                    <span class="text-[11px] font-bold tracking-wider">질의응답</span>
+                </button>
+                <button onclick="switchTab('memo')" id="tab-memo" role="tab" class="tab-btn flex-1 py-3 flex flex-col items-center gap-1 transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-forest text-gray-400 hover:text-gray-600 hover:bg-gray-50">
+                    <i data-lucide="edit-3" class="w-5 h-5"></i>
+                    <span class="text-[11px] font-bold tracking-wider">학습 메모</span>
+                </button>
+                <button onclick="switchTab('library')" id="tab-library" role="tab" class="tab-btn flex-1 py-3 flex flex-col items-center gap-1 transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-forest text-gray-400 hover:text-gray-600 hover:bg-gray-50">
+                    <i data-lucide="download-cloud" class="w-5 h-5"></i>
+                    <span class="text-[11px] font-bold tracking-wider">자료실</span>
+                </button>
+            </div>
+
+            <div class="flex-grow overflow-y-auto bg-[#fafafa]">
+                <!-- QA Panel -->
+                <div id="panel-qa" class="tab-panel h-full flex flex-col" role="tabpanel">
+                    <div class="flex-grow p-4 flex flex-col gap-3 overflow-y-auto" id="qa-container">
+                        <div class="bg-forest-100 text-forest text-xs p-3 rounded-lg rounded-tl-sm shadow-sm">
+                            안녕하세요! 학습 중 궁금한 점이 있으신가요? 전체 실시간 채팅방입니다.
+                        </div>
+                    </div>
+                    <div class="p-3 border-t border-gray-100 bg-white z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                        <div class="relative">
+                            <input type="text" id="qa-input" placeholder="메시지를 입력하세요..." class="w-full bg-gray-50 text-sm rounded-full pl-4 pr-10 py-2.5 outline-none focus:ring-2 focus:ring-forest" aria-label="질문 입력창" />
+                            <button id="qa-send-btn" class="absolute right-2 top-1.5 p-1.5 rounded-full text-white bg-forest hover:bg-forest-light focus:ring-2 focus:ring-offset-1 focus:ring-forest outline-none" aria-label="전송">
+                                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Memo Panel -->
+                <div id="panel-memo" class="tab-panel hidden h-full p-4 flex flex-col" role="tabpanel">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold text-gray-500">나만의 리마인드 노트</span>
+                        <span class="text-[10px] text-forest bg-forest-50 border border-forest-100 px-2 py-0.5 rounded-full font-semibold">자동저장됨</span>
+                    </div>
+                    <textarea id="memo-textarea" class="flex-grow w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-forest resize-none leading-relaxed" placeholder="여기에 자유롭게 내용을 기록하세요..." aria-label="메모장"></textarea>
+                </div>
+
+                <!-- Library Panel -->
+                <div id="panel-library" class="tab-panel hidden p-4 space-y-3" role="tabpanel">
+                    <div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-forest-50 text-forest rounded-md"><i data-lucide="download-cloud" class="w-4 h-4"></i></div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-800">모듈1_핵심정리.pdf</h4>
+                                <p class="text-[10px] text-gray-400">2.4 MB</p>
+                            </div>
+                        </div>
+                        <button class="text-forest font-bold text-xs hover:underline focus:outline-none focus:ring-2 focus:ring-forest rounded px-1">다운로드</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Interface & Logic Scripts -->
+    <script>
+        // 0. Supabase & Dashboard JS Initialization
+        const SUPABASE_URL = 'https://ehdjrzpokwzeqoeyvdju.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_LUtgAd4g6bQqIWyLBGJ0cg_q6ZQWdrc';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let guestId = localStorage.getItem('guest_id');
+        let guestName = localStorage.getItem('guest_name');
+        if (!guestId) {
+            guestId = 'guest_' + Math.random().toString(36).substr(2, 9);
+            guestName = '수강생_' + Math.floor(Math.random() * 1000);
+            localStorage.setItem('guest_id', guestId);
+            localStorage.setItem('guest_name', guestName);
+        }
+
+        async function initDashboard() {
+            await Promise.all([
+                loadCurriculum(),
+                loadProgress(),
+                loadMemo(),
+                loadDiscussions()
+            ]);
+            setupRealtime();
+            markAsCompleted('intro'); // mark first as complete initially
+            
+            lucide.createIcons();
+        }
+
+        async function loadCurriculum() {
+            const { data, error } = await supabaseClient.from('curriculum').select('*').order('order_idx', { ascending: true });
+            if (error) { console.error(error); return; }
+            
+            const menuNav = document.getElementById('menu-nav');
+            menuNav.innerHTML = '';
+            
+            data.forEach((item) => {
+                let icon = 'file';
+                if (item.type === 'INTRO') icon = 'check-circle-2';
+                else if (item.type === 'VIDEO') icon = 'play-circle';
+                else if (item.type === 'DOC') icon = 'file-text';
+                else if (item.type === 'AUDIO') icon = 'headphones';
+                else if (item.type === 'DISCUSS') icon = 'message-circle';
+                else if (item.type === 'QUIZ') icon = 'help-circle';
+
+                const btn = document.createElement('button');
+                btn.id = `menu-${item.unit_id}`;
+                btn.onclick = () => {
+                    switchUnit(item.unit_id);
+                    markAsCompleted(item.unit_id);
+                };
+                
+                let baseClasses = 'menu-item w-full flex text-left gap-3 px-3 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-forest border border-transparent';
+                if(item.unit_id === 'intro') {
+                    baseClasses += ' bg-forest-100 border-forest-light/20 shadow-sm opacity-70 active-menu';
+                } else {
+                    baseClasses += ' hover:bg-gray-50';
+                }
+                
+                btn.className = baseClasses;
+                
+                const iconColor = item.unit_id === 'intro' ? 'text-forest' : 'text-gray-400';
+                const textColor = item.unit_id === 'intro' ? 'text-forest' : 'text-gray-700';
+                const badgeColor = item.unit_id === 'intro' ? 'bg-forest/10 text-forest' : 'bg-gray-100 text-gray-500';
+
+                btn.innerHTML = `
+                    <div class="mt-0.5 ${iconColor} flex-shrink-0 icon-default"><i data-lucide="${icon}" class="w-5 h-5"></i></div>
+                    <div>
+                        <p class="font-semibold text-sm ${textColor}">${item.title}</p>
+                        <div class="text-[11px] mt-1 font-medium px-1.5 py-0.5 inline-block rounded-md ${badgeColor} badge">${item.type} • ${item.duration_text}</div>
+                    </div>
+                `;
+                menuNav.appendChild(btn);
+            });
+            lucide.createIcons();
+        }
+
+        async function loadProgress() {
+            const { data, error } = await supabaseClient.from('user_progress').select('*').eq('guest_id', guestId).eq('completed', true);
+            if (error) return;
+            const totalUnits = 6;
+            const completedUnits = data ? data.length : 0;
+            const percentage = Math.round((completedUnits / totalUnits) * 100);
+            
+            document.getElementById('progress-text').innerText = `${percentage}%`;
+            const bar = document.getElementById('progress-bar');
+            bar.style.width = `${percentage}%`;
+            bar.setAttribute('aria-valuenow', percentage);
+        }
+
+        async function markAsCompleted(unit_id) {
+            await supabaseClient.from('user_progress').upsert({
+                guest_id: guestId, unit_id: unit_id, completed: true, updated_at: new Date()
+            }, { onConflict: 'guest_id,unit_id' });
+            loadProgress();
+        }
+
+        const memoTextarea = document.getElementById('memo-textarea');
+        let memoTimeout;
+        async function loadMemo() {
+            const { data, error } = await supabaseClient.from('memos').select('content').eq('guest_id', guestId).single();
+            if (data && data.content) memoTextarea.value = data.content;
+        }
+        memoTextarea.addEventListener('input', (e) => {
+            clearTimeout(memoTimeout);
+            memoTimeout = setTimeout(async () => {
+                await supabaseClient.from('memos').upsert({
+                    guest_id: guestId, content: e.target.value, updated_at: new Date()
+                }, { onConflict: 'guest_id' });
+            }, 800);
+        });
+
+        const qaContainer = document.getElementById('qa-container');
+        const qaInput = document.getElementById('qa-input');
+        const qaSendBtn = document.getElementById('qa-send-btn');
+
+        async function loadDiscussions() {
+            const { data, error } = await supabaseClient.from('discussions').select('*').order('created_at', { ascending: true });
+            if (error) return;
+            
+            const introHtml = qaContainer.children[0] ? qaContainer.children[0].outerHTML : '';
+            qaContainer.innerHTML = introHtml;
+            
+            if(data) {
+                data.forEach(msg => appendDiscussionMessage(msg));
+            }
+        }
+
+        function appendDiscussionMessage(msg) {
+            const isMe = msg.guest_id === guestId;
+            const div = document.createElement('div');
+            
+            if (isMe) {
+                div.className = "bg-white border border-gray-100 text-gray-700 text-sm p-3 rounded-xl rounded-tr-sm self-end max-w-[85%] shadow-[0_2px_4px_rgba(0,0,0,0.03)] flex flex-col mt-2";
+                div.innerHTML = `<span class="mb-1.5 block text-[10px] font-bold text-forest/70 text-right">나 (${msg.author_name})</span>`;
+            } else {
+                div.className = "bg-forest-50/50 border border-forest-100/50 text-gray-800 text-sm p-3 rounded-xl rounded-tl-sm self-start max-w-[85%] shadow-[0_2px_4px_rgba(0,0,0,0.03)] flex flex-col mt-2";
+                div.innerHTML = `<span class="mb-1.5 block text-[10px] font-bold text-gray-500">${msg.author_name}</span>`;
+            }
+            
+            const p = document.createElement('p');
+            p.innerText = msg.content;
+            p.className = "leading-relaxed";
+            div.appendChild(p);
+            
+            qaContainer.appendChild(div);
+            qaContainer.scrollTop = qaContainer.scrollHeight;
+        }
+
+        async function sendDiscussionMessage() {
+            const val = qaInput.value.trim();
+            if (!val) return;
+            qaInput.value = '';
+            
+            const optimisticMsg = { guest_id: guestId, author_name: guestName, content: val, created_at: new Date() };
+            appendDiscussionMessage(optimisticMsg);
+            
+            await supabaseClient.from('discussions').insert({
+                guest_id: guestId, author_name: guestName, content: val
+            });
+        }
+
+        qaSendBtn.addEventListener('click', sendDiscussionMessage);
+        qaInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendDiscussionMessage(); });
+
+        function setupRealtime() {
+            supabaseClient.channel('public:discussions')
+              .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'discussions' }, payload => {
+                  if(payload.new.guest_id !== guestId) {
+                      appendDiscussionMessage(payload.new);
+                  }
+              })
+              .subscribe();
+        }
+
+        document.addEventListener('DOMContentLoaded', initDashboard);
+
+        // 1. Audio Waveform Generation
+        const waveContainer = document.getElementById('audio-wave');
+        for (let i = 0; i < 40; i++) {
+            const div = document.createElement('div');
+            const h = Math.max(15, Math.sin((i / 40) * Math.PI) * (Math.random() * 60 + 40));
+            div.className = 'flex-1 bg-white/60 rounded-full anim-wave';
+            div.style.height = `${h}%`;
+            // staggered animation delay
+            div.style.animationDelay = `${i * 0.05}s`;
+            waveContainer.appendChild(div);
+        }
+
+        // 2. Sidebar Toggle Logic
+        let isLeftOpen = false;
+        let isRightOpen = false;
+        const leftSidebar = document.getElementById('leftSidebar');
+        const rightSidebar = document.getElementById('rightSidebar');
+        const overlay = document.getElementById('overlay');
+
+        function toggleLeftSidebar() {
+            isLeftOpen = !isLeftOpen;
+            if (isLeftOpen) {
+                leftSidebar.classList.remove('-translate-x-full');
+                showOverlay();
+                if(isRightOpen) toggleRightSidebar();
+            } else {
+                leftSidebar.classList.add('-translate-x-full');
+                if(!isRightOpen) hideOverlay();
+            }
+        }
+
+        function toggleRightSidebar() {
+            isRightOpen = !isRightOpen;
+            if (isRightOpen) {
+                rightSidebar.classList.remove('translate-x-full');
+                showOverlay();
+                if(isLeftOpen) toggleLeftSidebar();
+            } else {
+                rightSidebar.classList.add('translate-x-full');
+                if(!isLeftOpen) hideOverlay();
+            }
+        }
+
+        function showOverlay() {
+            overlay.classList.remove('hidden');
+            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+        }
+
+        function hideOverlay() {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                if(!isLeftOpen && !isRightOpen) overlay.classList.add('hidden');
+            }, 300);
+        }
+
+        document.getElementById('btnToggleLeft').addEventListener('click', toggleLeftSidebar);
+        document.getElementById('btnCloseLeft').addEventListener('click', toggleLeftSidebar);
+        document.getElementById('btnToggleRight').addEventListener('click', toggleRightSidebar);
+        document.getElementById('btnCloseRight').addEventListener('click', toggleRightSidebar);
+        overlay.addEventListener('click', () => {
+            if (isLeftOpen) toggleLeftSidebar();
+            if (isRightOpen) toggleRightSidebar();
+        });
+
+        // 3. Central Content Switching Logic (1:1 Mapping)
+        function switchUnit(unitName) {
+            // Hide all content views
+            document.querySelectorAll('.content-view').forEach(el => el.classList.add('hidden'));
+            
+            // Show target view
+            const targetView = document.getElementById('view-' + unitName);
+            if(targetView) targetView.classList.remove('hidden');
+
+            // Reset menu styling
+            document.querySelectorAll('.menu-item').forEach(el => {
+                el.classList.remove('bg-forest-100', 'border-forest-light/20');
+                el.classList.add('hover:bg-gray-50', 'border-transparent');
+                
+                // reset icon block colors
+                const iconDiv = el.querySelector('div');
+                if(iconDiv.classList.contains('text-forest')) {
+                    iconDiv.classList.replace('text-forest', 'text-gray-400');
+                }
+                const textP = el.querySelector('p');
+                if(textP.classList.contains('text-forest')) {
+                    textP.classList.replace('text-forest', 'text-gray-700');
+                }
+                const badge = el.querySelector('.badge');
+                if(badge) {
+                    badge.classList.remove('bg-forest/10', 'text-forest');
+                    badge.classList.add('bg-gray-100', 'text-gray-500');
+                }
+            });
+
+            // Set active menu styling
+            const activeMenu = document.getElementById('menu-' + unitName);
+            if(activeMenu) {
+                activeMenu.classList.remove('hover:bg-gray-50', 'border-transparent');
+                activeMenu.classList.add('bg-forest-100', 'border-forest-light/20');
+                
+                const iconDiv = activeMenu.querySelector('div');
+                iconDiv.classList.replace('text-gray-400', 'text-forest');
+                const textP = activeMenu.querySelector('p');
+                textP.classList.replace('text-gray-700', 'text-forest');
+
+                const badge = activeMenu.querySelector('.badge');
+                if(badge) {
+                    badge.classList.remove('bg-gray-100', 'text-gray-500');
+                    badge.classList.add('bg-forest/10', 'text-forest');
+                }
+            }
+
+            // Close sidebar on mobile after selection
+            if (window.innerWidth < 1024 && isLeftOpen) {
+                toggleLeftSidebar();
+            }
+        }
+
+        // 4. Tools Sidebar Tab Switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+            document.getElementById('panel-' + tabName).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('text-forest', 'border-b-2', 'border-forest', 'bg-forest-50/30');
+                el.classList.add('text-gray-400', 'hover:text-gray-600', 'hover:bg-gray-50');
+            });
+
+            const activeTab = document.getElementById('tab-' + tabName);
+            activeTab.classList.remove('text-gray-400', 'hover:text-gray-600', 'hover:bg-gray-50');
+            activeTab.classList.add('text-forest', 'border-b-2', 'border-forest', 'bg-forest-50/30');
+        }
+
+    </script>
+</body>
+</html>

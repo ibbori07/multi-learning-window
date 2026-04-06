@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        forest: {
+                            DEFAULT: '#2D5A27',
+                            light: '#3A7032',
+                            dark: '#1E3C1A',
+                            50: '#F2F9F1',
+                            100: '#E1EFE0'
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'inner-soft': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Smooth Drawer Transitions */
+        #leftSidebar, #rightSidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #overlay {
+            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Responsive 16:9 Aspect Ratio */
+        .aspect-video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            background-color: #f3f4f6;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .aspect-video-container > div {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        /* Custom Scrollbar for sleekness */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e5e7eb;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+    </style>
+</head>
+<body class="h-screen bg-gray-50 text-gray-800 flex flex-col overflow-hidden text-sm md:text-base">
+
+    <!-- OVERLAY -->
+    <div id="overlay" class="fixed inset-0 bg-gray-900/40 z-20 hidden opacity-0 lg:hidden" aria-hidden="true"></div>
+
+    <!-- HEADER -->
+    <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 lg:px-6 z-10 shadow-soft shrink-0 relative z-30">
+        <div class="flex items-center gap-3 w-1/4">
+            <!-- Mobile Toggle Left -->
+            <button id="btnToggleLeft" class="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-lg lg:hidden focus:outline-none focus:ring-2 focus:ring-forest" aria-label="Toggle Learning Path">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-2 font-bold text-lg tracking-tight text-gray-900">
+                <div class="w-8 h-8 rounded-lg bg-forest flex items-center justify-center text-white">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <span class="hidden sm:block">EduCore</span>
+            </div>
+        </div>
+
+        <!-- Progress Bar (Center) -->
+        <div class="flex-grow max-w-md mx-4">
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Module 3 Masterclass</span>
+                <span class="text-xs font-bold text-forest">64%</span>
+            </div>
+            <div class="h-2 bg-gray-100 rounded-full overflow-hidden w-full shadow-inner-soft">
+                <div class="h-full bg-forest rounded-full transition-all duration-500 ease-out" style="width: 64%;" role="progressbar" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 w-1/4 justify-end">
+            <button class="p-2 text-gray-400 hover:text-forest transition-colors hidden sm:block" aria-label="Notifications">
+                <i data-lucide="bell" class="w-5 h-5"></i>
+            </button>
+            <div class="w-8 h-8 rounded-full bg-forest-50 border border-forest-100 flex items-center justify-center text-forest font-bold text-sm overflow-hidden hidden sm:flex">
+                JS
+            </div>
+            <!-- Mobile Toggle Right -->
+            <button id="btnToggleRight" class="p-2 -mr-2 text-gray-500 hover:bg-gray-100 rounded-lg lg:hidden focus:outline-none focus:ring-2 focus:ring-forest" aria-label="Toggle AI Tutor">
+                <i data-lucide="bot" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN WRAPPER -->
+    <div class="flex-grow flex relative overflow-hidden h-[calc(100vh-4rem)]">
+
+        <!-- LEFT SIDEBAR: Learning Path -->
+        <aside id="leftSidebar" class="absolute lg:static top-0 left-0 h-full w-72 bg-white border-r border-gray-100 z-30 transform -translate-x-full lg:translate-x-0 flex flex-col shadow-soft lg:shadow-none">
+            <div class="p-5 border-b border-gray-50 shrink-0 flex justify-between items-center">
+                <h2 class="font-semibold text-gray-800 tracking-tight">Learning Path</h2>
+                <button id="btnCloseLeft" class="lg:hidden p-1 text-gray-400 hover:text-gray-600 rounded">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <nav class="flex-grow overflow-y-auto p-4 space-y-1" aria-label="Curriculum">
+                <!-- Completed Module -->
+                <div class="mb-6">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">Module 1: Foundations</h3>
+                    <a href="#" class="flex gap-3 px-2 py-2.5 rounded-lg group hover:bg-gray-50 transition-colors opacity-70">
+                        <div class="mt-0.5 text-forest">
+                            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-700 group-hover:text-gray-900 transition-colors">1. Introduction to UX</p>
+                            <p class="text-xs text-gray-400 mt-0.5">15 min • Video</p>
+                        </div>
+                    </a>
+                </div>
+                
+                <!-- Current Module -->
+                <div class="mb-6">
+                    <h3 class="text-xs font-bold text-forest uppercase tracking-wider mb-2 px-2">Module 2: Core Principles</h3>
+                    <a href="#" class="flex gap-3 px-2 py-2.5 rounded-lg bg-forest-50 border border-forest-100 relative mb-1">
+                        <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-forest rounded-r-md"></div>
+                        <div class="mt-0.5 text-forest">
+                            <i data-lucide="play-circle" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-forest-dark">2. The 3-Column Layout</p>
+                            <p class="text-xs text-forest mt-0.5">25 min • Video</p>
+                        </div>
+                    </a>
+                    <a href="#" class="flex gap-3 px-2 py-2.5 rounded-lg group hover:bg-gray-50 transition-colors">
+                        <div class="mt-0.5 text-gray-300 group-hover:text-gray-400">
+                            <i data-lucide="circle" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-600 group-hover:text-gray-800 transition-colors">3. Responsive Behaviors</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Reading • PDF</p>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Locked Module -->
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">Module 3: Advanced</h3>
+                    <div class="flex gap-3 px-2 py-2.5 rounded-lg opacity-50 cursor-not-allowed">
+                        <div class="mt-0.5 text-gray-300">
+                            <i data-lucide="lock" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-500">4. Accessibility Basics</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Locked</p>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- CENTRAL AREA -->
+        <main class="flex-grow bg-white lg:bg-[#fafafa] overflow-y-auto relative w-full h-full p-4 lg:p-8 flex justify-center">
+            <div class="w-full max-w-4xl flex flex-col">
+                <!-- Header of content -->
+                <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 tracking-tight">The 3-Column Layout</h1>
+                        <p class="text-sm text-gray-500 mt-1">Learn how to build responsive, modern dashboard layouts.</p>
+                    </div>
+                    <button class="bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center gap-2 shadow-sm">
+                        <i data-lucide="bookmark" class="w-4 h-4"></i> Save
+                    </button>
+                </div>
+
+                <!-- Video Player / Content Viewer placeholder -->
+                <section class="aspect-video-container mb-6" aria-label="Video Player">
+                    <div class="bg-gray-900 text-white relative group">
+                        <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1200&h=675" alt="Video Thumbnail" class="absolute inset-0 w-full h-full object-cover opacity-60" />
+                        <div class="z-10 bg-white/20 p-4 rounded-full backdrop-blur-md cursor-pointer hover:bg-white/30 transition shadow-lg group-hover:scale-110 duration-300">
+                            <i data-lucide="play" class="w-10 h-10 fill-current text-white ml-1"></i>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Interactive Zone -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-100 flex-grow mb-8 overflow-hidden flex flex-col">
+                    <div class="flex border-b border-gray-100 flex-wrap">
+                        <button class="px-5 py-3 text-sm font-semibold text-forest border-b-2 border-forest" aria-current="page">Overview</button>
+                        <button class="px-5 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition">Discussion <span class="bg-gray-100 text-gray-600 ml-1 py-0.5 px-2 rounded-full text-xs">12</span></button>
+                        <button class="px-5 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition">Resources</button>
+                        <button class="px-5 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition">Quiz</button>
+                    </div>
+                    <div class="p-6 text-gray-600 text-sm leading-relaxed flex-grow">
+                        <h4 class="text-lg font-semibold text-gray-900 mb-3">About this lesson</h4>
+                        <p class="mb-4">In this comprehensive module, we dive deep into the foundations of advanced layout techniques using modern CSS methodologies like Flexbox and Grid. You will understand how to orchestrate complex UI patterns while maintaining clean semantic HTML.</p>
+                        <ul class="list-disc pl-5 space-y-2 mb-6">
+                            <li>Understanding viewport relative units for scaling.</li>
+                            <li>Building robust sidebars that slide in and out seamlessly.</li>
+                            <li>Ensuring AA contrast ratios for accessibility.</li>
+                        </ul>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- RIGHT SIDEBAR: Tools & AI Chat -->
+        <aside id="rightSidebar" class="absolute lg:static top-0 right-0 h-full w-80 bg-white border-l border-gray-100 z-30 transform translate-x-full lg:translate-x-0 flex flex-col shadow-soft lg:shadow-none">
+            <div class="p-5 border-b border-gray-50 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-md bg-forest-50 text-forest flex items-center justify-center">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    </div>
+                    <h2 class="font-semibold text-gray-800 tracking-tight">AI Tutor</h2>
+                </div>
+                <button id="btnCloseRight" class="lg:hidden p-1 text-gray-400 hover:text-gray-600 rounded">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <!-- Quick Tools -->
+            <div class="p-4 border-b border-gray-50 flex justify-around shrink-0 relative bg-gray-50/50">
+                <button class="flex flex-col items-center gap-1.5 text-gray-500 hover:text-forest transition group" aria-label="Take Notes">
+                    <div class="w-10 h-10 rounded-full bg-white border border-gray-100 flex items-center justify-center group-hover:border-forest-100 group-hover:bg-forest-50 shadow-sm transition">
+                        <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-[10px] font-medium uppercase tracking-wide">Notes</span>
+                </button>
+                <button class="flex flex-col items-center gap-1.5 text-gray-500 hover:text-forest transition group" aria-label="Translate">
+                    <div class="w-10 h-10 rounded-full bg-white border border-gray-100 flex items-center justify-center group-hover:border-forest-100 group-hover:bg-forest-50 shadow-sm transition">
+                        <i data-lucide="languages" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-[10px] font-medium uppercase tracking-wide">Translate</span>
+                </button>
+                <button class="flex flex-col items-center gap-1.5 text-gray-500 hover:text-forest transition group" aria-label="Ask Expert">
+                    <div class="w-10 h-10 rounded-full bg-white border border-gray-100 flex items-center justify-center group-hover:border-forest-100 group-hover:bg-forest-50 shadow-sm transition">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-[10px] font-medium uppercase tracking-wide">Expert</span>
+                </button>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="flex-grow overflow-y-auto p-4 flex flex-col gap-4 bg-gray-50/30">
+                <!-- System Message -->
+                <div class="bg-forest-50 border border-forest-100 rounded-lg p-3 text-xs text-forest-dark shrink-0">
+                    Hello! I'm your AI Tutor. Need help understanding the 3-column layout? Ask me anything!
+                </div>
+                
+                <!-- Chat Bubbles -->
+                <div class="flex gap-2">
+                    <div class="w-6 h-6 rounded-full bg-forest text-white flex items-center justify-center shrink-0 mt-1">
+                        <i data-lucide="bot" class="w-3.5 h-3.5"></i>
+                    </div>
+                    <div class="bg-gray-100 rounded-2xl rounded-tl-sm p-3 text-sm text-gray-700">
+                        How can I explain the Flexbox alignment seen in the main section?
+                    </div>
+                </div>
+
+                <div class="flex gap-2 flex-row-reverse">
+                    <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-1 text-xs font-bold">
+                        JS
+                    </div>
+                    <div class="bg-forest text-white rounded-2xl rounded-tr-sm p-3 text-sm shadow-sm">
+                        Why does the central area use overflow-y-auto?
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 mb-2">
+                    <div class="w-6 h-6 rounded-full bg-forest text-white flex items-center justify-center shrink-0 mt-1">
+                        <i data-lucide="bot" class="w-3.5 h-3.5"></i>
+                    </div>
+                    <div class="bg-gray-100 rounded-2xl rounded-tl-sm p-3 text-sm text-gray-700 leading-relaxed">
+                        Great question! By setting `overflow-y-auto` on the main container instead of the body, we allow the central content to scroll independently while keeping the sidebars and header fixed on the screen.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Box -->
+            <div class="p-4 bg-white border-t border-gray-100 shrink-0">
+                <div class="relative flex items-center">
+                    <input type="text" placeholder="Type your question..." class="w-full bg-gray-50 border border-gray-200 text-sm rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-forest focus:border-transparent transition" aria-label="Message AI Tutor" />
+                    <button class="absolute right-2 text-forest-light hover:text-forest transition p-1 bg-white rounded-full mx-0.5">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Interface Logic -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // DOM Elements
+        const btnToggleLeft = document.getElementById('btnToggleLeft');
+        const btnCloseLeft = document.getElementById('btnCloseLeft');
+        const leftSidebar = document.getElementById('leftSidebar');
+
+        const btnToggleRight = document.getElementById('btnToggleRight');
+        const btnCloseRight = document.getElementById('btnCloseRight');
+        const rightSidebar = document.getElementById('rightSidebar');
+
+        const overlay = document.getElementById('overlay');
+
+        // State
+        let isLeftOpen = false;
+        let isRightOpen = false;
+
+        // Functions
+        function toggleLeftSidebar() {
+            isLeftOpen = !isLeftOpen;
+            if (isLeftOpen) {
+                leftSidebar.classList.remove('-translate-x-full');
+                showOverlay();
+                if(isRightOpen) toggleRightSidebar(); // Close right if open
+            } else {
+                leftSidebar.classList.add('-translate-x-full');
+                if(!isRightOpen) hideOverlay();
+            }
+        }
+
+        function toggleRightSidebar() {
+            isRightOpen = !isRightOpen;
+            if (isRightOpen) {
+                rightSidebar.classList.remove('translate-x-full');
+                showOverlay();
+                if(isLeftOpen) toggleLeftSidebar(); // Close left if open
+            } else {
+                rightSidebar.classList.add('translate-x-full');
+                if(!isLeftOpen) hideOverlay();
+            }
+        }
+
+        function showOverlay() {
+            overlay.classList.remove('hidden');
+            // Small delay to allow transition, using offsetHeight trick
+            void overlay.offsetHeight;
+            overlay.classList.remove('opacity-0');
+        }
+
+        function hideOverlay() {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                if(!isLeftOpen && !isRightOpen) overlay.classList.add('hidden');
+            }, 300);
+        }
+
+        // Event Listeners
+        btnToggleLeft.addEventListener('click', toggleLeftSidebar);
+        btnCloseLeft.addEventListener('click', toggleLeftSidebar);
+
+        btnToggleRight.addEventListener('click', toggleRightSidebar);
+        btnCloseRight.addEventListener('click', toggleRightSidebar);
+
+        overlay.addEventListener('click', () => {
+            if (isLeftOpen) toggleLeftSidebar();
+            if (isRightOpen) toggleRightSidebar();
+        });
+
+        // Handle resize layout changes
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 1024) { // lg breakpoint
+                if(isLeftOpen) { toggleLeftSidebar(); }
+                if(isRightOpen) { toggleRightSidebar(); }
+            }
+        });
+    </script>
+</body>
+</html>
